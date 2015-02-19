@@ -1,9 +1,10 @@
 """Provide the connection classes for the different kind of scopes."""
 
 # Imports
+import numpy
 import vxi11
 import threading
-import numpy as np
+from timeit import default_timer as time
 
 
 # Scope connection class
@@ -53,9 +54,9 @@ class ScopeConnection:
             answer = self.scope.ask(command)
         return answer
 
-    def write(self, commandList):
+    def write(self, command):
         """Perform a write operation"""
-        command = self.prepareCommand(commandList)
+        command = self.prepareCommand(command)
         with self.lock:
             self.scope.write(command)
 
@@ -103,71 +104,79 @@ class ScopeConnection:
 
     # Acquisition
 
-    def acquire_waveforms(self):
-        """Acquire waveforms."""
-        # Single acquisition case
-        if single:
-            with self.mutex:
-                cmd = "SING;*OPC?"
-                self.scope.write(cmd)
-                self.scope.read_raw()
-        # Get the waveforms
-        return self.get_waveforms(division)
+    def get_waveform_string(self, channels):
+        """Return a string containing the waveform values
+        for the given channels.
 
-    def get_waveforms(self, division=True, volt=False, both=True):
-        """Get the waveform dict."""
-        decoded_waves = {}
-        for channel in range(1, 5):
-            decoded_waves[channel] = self.getWaveform(channel, division)
-        return decoded_waves
+        Not implemented here.
+        """
+        raise NotImplementedError
 
-    def getWaveform(self, channel, division=True):
-        """Get the waveform for a given channel."""
-        with self.mutex:
-            # Get the record length
-            self.scope.write("CHAN%d:DATA:POINTS?" % channel)
-            points = int(self.scope.read_raw())
-            # No data available
-            if not points:
-                return []
-            # Get the data
-            self.scope.write("CHAN%d:DATA?" % channel)
-            wfdata = self.scope.read_raw()
-            # Division mode
-            if division:
-                return self.decodeWaveform(wfdata, points)
-            # Volt mode
-            self.scope.write("CHAN%d:DATA:YOR?"  % channel)
-            zero = float(self.scope.read_raw())
-            self.scope.write("CHAN%d:DATA:YINC?"  % channel)
-            inc = float(self.scope.read_raw())
-            return self.decodeWaveform(wfdata, points, zero, inc)
+    def parse_waveform_string(self, channels, string):
+        """Return the waveform values as a dictionary.
 
-    def decodeWaveform(self, data, wavlen, zero=None, inc=None):
-        """Decode the given waveform."""
-        # Note: we're assuming that the data has the correct format; (INT,8)
-        lenlen = int(data[1])
-        datalen = int(data[2:2+lenlen])
+        The channels argument are the channels included in the acquisition.
+        The string argument is the data from the scope.
+        """
+        result = {}
+        channel_number = len(channels)
+        # Prepare string
+        data_length_length = int(string[1])
+        data_length = int(string[2:2+data_length_length])
+        string = string[2+data_length_length]
+        # Loop over channels
+        for index, channel in enumerate(channels):
+            substring = string[index:data_length:channel_number]
+            result[channel] = numpy.fromstring(substring, dtype=numpy.int8)
+        # Return dictionary
+        return result
 
-        if datalen != wavlen:
-            msg = "Wrong number of points ({0} != {1})"
-            raise ValueError(msg.format(datalen, wavlen))
+    def convert_waveforms(self, data_dict, scales=None, positions=None):
+        """Convert the values in the acquisition dictionary
+        to divisions or volts.
 
-        wave_data = np.fromstring(data[2+lenlen:-1], dtype=np.uint8)
-        # Selected unit is division
-        if zero is None or inc is None:
-            nb_div = 10
-            info = np.iinfo(wave_data.dtype)
-            data_range = float(info.max - info.min)
+        If scales and positions are given, the result is returned in volts.
+        Otherwise, the result is in divisions.
+        """
+        result = {}
+        # Loop over the channels
+        for channel, data in data_dict.items():
+            # Get median
+            info = numpy.iinfo(data.dtype)
             data_median = (info.max + info.min) * 0.5
-            # Newer numpy version
-            try: wave_data = wave_data.astype(np.double, copy=False)
-            # Older numpy version
-            except TypeError: wave_data = wave_data.astype(np.double)
-            return (wave_data - data_median)* (nb_div / data_range)
-        # Selected unit is volts
-        else:
-            return zero + (inc * wave_data)
+            # Get factor and position
+            factor = 10.0
+            factor /= info.max - info.min
+            if scales is not None:
+                factor *= scales[channel]
+            position = 0 if positions is None else positions[channel]
+            # Convert
+            data = data.astype(numpy.double)
+            result[channel] = ((data - data_median) * factor) + position
+        # Return dict
+        return result
+
+    def get_waveform_data(self, channels):
+        """Return the waveform raw data as a dictionary
+        for the given channels.
+        """
+        string = self.get_waveform_string(channels)
+        return self.parse_wavefrom_data(channels, string)
+
+    def get_waveforms(self, scales=None, positions=None):
+        """Return the waveform values as a dictionary.
+
+        The channels are the channels to include in the acquisition.
+        """
+        data_dict = self.get_wavefrom_data()
+        return self.convert_waveforms(self, data_dict, scales, positions)
+
+    def stamp_acquisition(self, channels):
+        """Return the time stamp of an acquisition
+        along with the values as a string.
+        """
+        self.scope.ask("RUNS;*OPC?")
+        return time(), self.get_waveform_string(channels)
 
     # General accessor methods
 
@@ -190,16 +199,13 @@ class ScopeConnection:
         cmd = "ACQUIRE:MODE?"
         return str(self.ask(cmd))
 
+    def get_state(self):
+        """Not implemented here."""
+        raise NotImplementedError
+
     def get_status(self):
-        """Return the status of the scope as a string."""
-        status_dict = {8: "Stopped or waiting for trigger.",
-                       4: "Autosetting.",
-                       1: "Calibrating.",
-                       0: "Status OK."}
-        cmd = "STATus:OPER:COND?"
-        code = int(self.ask(cmd))
-        default_code = "Unknown code: {0}".format(code)
-        return status_dict.get(code, default_code)
+        """Not implemented here."""
+        raise NotImplementedError
 
     # Time base accessor methods
 
@@ -208,17 +214,32 @@ class ScopeConnection:
         cmd = "TIMebase:SCALe?"
         return float(self.ask(cmd))
 
+    def set_time_scale(self, scale):
+        """Set the time scale in seconds/division."""
+        cmd = "TIMebase:SCALe {0}".format(scale)
+        self.write(cmd)
+
     def get_time_range(self):
         """Return the time range in seconds."""
         cmd = "TIMebase:RANGe?"
         rng = self.ask(cmd)
         return float(rng)
 
+    def set_time_range(self, time_range):
+        """Set the time range in seconds (for the 10 divisions)."""
+        cmd = "TIMebase:RANGe {0}".format(time_range)
+        self.write(cmd)
+
     def get_time_position(self):
         """Return the time position in seconds."""
         cmd = "TIMebase:POSition?"
         rng = self.ask(cmd)
         return float(rng)
+
+    def set_time_position(self, position):
+        """Set the time position in seconds."""
+        cmd = "TIMebase:POSition {0}".format(position)
+        self.write(cmd)
 
     # Channel settings accessor methods
 
@@ -227,60 +248,66 @@ class ScopeConnection:
         cmd = "CHAN{0}:OFFSet?".format(channel)
         return float(self.ask(cmd))
 
+    def set_channel_offset(self, channel, offset):
+        """Set the offset for a given channel in volts."""
+        cmd = "CHAN{0}:OFFSet {1}".format(channel, offset)
+        self.write(cmd)
+
     def get_channel_position(self, channel):
         """Return the position for a given channel in volts."""
         cmd = "CHAN{0}:POSition?".format(channel)
         return float(self.ask(cmd))
+
+    def set_channel_position(self, channel, position):
+        """Set the position in volts for a given channel"""
+        cmd = "CHAN{0}:POSition {1}".format(channel, position)
+        self.write(cmd)
 
     def get_channel_range(self, channel):
         """Return the range for a given channel in volts."""
         cmd = "CHAN%s:RANGe?".format(channel)
         return float(self.ask(cmd))
 
+    def set_channel_range(self, channel, channel_range):
+        """Set the range for a given channel in volts."""
+        cmd = "CHAN{0}:RANGe {1}".format(channel, channel_range)
+        self.write(cmd)
+
     def get_channel_scale(self, channel):
         """Return the scale for a given channel in volts/division."""
         cmd = "CHAN%s:SCALe?".format(channel)
         return float(self.ask(cmd))
 
-    def get_coupling(self, channel):
+    def set_channel_scale(self, channel, scale):
+        """Set the scale for a given channel in volts/division."""
+        cmd = "CHAN{0}:SCALe {1}".format(channel, scale)
+        self.write(cmd)
+
+    def get_channel_coupling(self, channel):
         """Return the coupling for a given channel."""
         cmd = "CHAN{0}:COUPling?".format(channel)
         return str(self.ask(cmd))
 
-    def get_channel_enabled(self, channel):
-        cmd = "CHAN{0}:STATe?".format(channel)
-        state = int(self.ask(cmd))
-        return bool(state)
-
-    # Custom setter methods
-
-    def set_channel_enabled(self, channel, enabled):
-        state = ("OFF", "ON")[bool(enabled)]
-        self.write(":CHAN{0}:STATe {1}".format(channel, state))
-
-    def set_channel_position(self, channel, position):
-        cmd = "CHAN{0}:POSition {1}" % (chan, position)
-        self.write(cmd)
-
-    def setVScale(self, chan, sca):
-        cmd = "CHAN%d:SCALe %f" % (chan, sca)
-        self.write(cmd)
-
-    def setHRange(self, rng):
-        "Set the width of the whole display, i.e. 10*scale"
-        cmd = "TIMebase:RANGe %s" % rng
-        self.write(cmd)
-
-    def setHPosition(self, pos):
-        "Set the width of the whole display, i.e. 10*scale"
-        cmd = "TIMebase:POSition %s" % pos
-        self.write(cmd)
-
-    def setCoupling(self, channel, coupling):
+    def set_channel_coupling(self, channel, coupling):
+        """Set the coupling for a given channel.
+        The value should be DC, DCL, DCLimit or AC
+        """
         if coupling not in ['DC', 'DCL', 'DCLimit', 'AC']:
             raise ValueError('coupling type not allowed, '
                              'it should be DC, DCLimit, AC or GND')
         cmd = "CHAN{0}:COUPling {1}".format(channel, coupling)
+        self.write(cmd)
+
+    def get_channel_enabled(self, channel):
+        """Return whether the given channel is enabled."""
+        cmd = "CHAN{0}:STATe?".format(channel)
+        state = int(self.ask(cmd))
+        return bool(state)
+
+    def set_channel_enabled(self, channel, enabled):
+        """Enable or disable a given channel."""
+        state = ("OFF", "ON")[bool(enabled)]
+        cmd = "CHAN{0}:STATe {1}".format(channel, state)
         self.write(cmd)
 
     # Trigger operation
@@ -325,8 +352,11 @@ class ScopeConnection:
         self.write(cmd)
 
 
+# RTM scope connection class
 class RTMConnection(ScopeConnection):
     """Connection class for the RTM scope."""
+
+    # State accessors
 
     def get_state(self):
         """Return whether the scope is acquiring.
@@ -335,3 +365,97 @@ class RTMConnection(ScopeConnection):
         cmd = "CHAN:HIST:CURR?"
         res = int(self.ask(cmd))
         return res <= 1
+
+    def get_status(self):
+        """Return the status of the scope as a string."""
+        status_dict = {8: "Stopped or waiting for trigger.",
+                       4: "Autosetting.",
+                       1: "Calibrating.",
+                       0: "Status OK."}
+        cmd = "STATus:OPER:COND?"
+        code = int(self.ask(cmd))
+        default_code = "Unknown code: {0}".format(code)
+        return status_dict.get(code, default_code)
+
+    # Waveform acquisition
+
+    def get_waveform_string(self, channels):
+        """Return a string containing the waveform values
+        for the given channels.
+        """
+        result = []
+        # Loop over channels
+        for channel in channels:
+            with self.lock:
+                self.scope.write("CHAN{0}:DATA?".format(channel))
+                result.append(self.scope.read_raw())
+        # Return list
+        return result
+
+    def parse_waveform_string(self, channels, string):
+        """Return the waveform values as a dictionary.
+
+        The channels argument are the channels included in the acquisition.
+        The string argument is the data from the scope.
+        """
+        result = {}
+        # Loop over the channels
+        for channel in channels:
+            dct = ScopeConnection.parse_waveform_string([channel], string)
+            result.update(dct)
+        # Return dict
+        return result
+
+
+# RTO scope connection class
+class RTOConnection(ScopeConnection):
+    """Connection class for the RTM scope."""
+
+    def connect(self):
+        """Connect to the scope if not already connected."""
+        # Call parent
+        connected = self.connected
+        ScopeConnection.connect(self)
+        # Disable time values for acquisitions
+        if not connected:
+            cmd = "EXPort:WAVeform:INCXvalues OFF"
+            self.scope.write(cmd)
+
+    # State accessors
+
+    def get_state(self):
+        """Return whether the scope is acquiring."""
+        # TODO
+        pass
+
+    def get_status(self):
+        """Return the status of the scope as a string."""
+        status_dict = {8: "Stopped or waiting for trigger.",
+                       4: "Autosetting.",
+                       1: "Calibrating.",
+                       0: "Status OK."}
+        cmd = "STATus:OPER:COND?"
+        code = int(self.ask(cmd))
+        default_code = "Unknown code: {0}".format(code)
+        return status_dict.get(code, default_code)
+
+    # Fast acquisition
+
+    def set_fast_readout(self, enabled):
+        state = ("OFF", "ON")[bool(enabled)]
+        cmd = "EXP:WAV:FAST {0}".format(state)
+        self.write(cmd)
+
+    def set_display(self, enabled):
+        cmd = "EXP:WAV:DISP {0}".format(int(not enabled))
+        self.write(cmd)
+
+    # Waveform acquisition
+
+    def get_waveform_string(self, channels):
+        """Return a string containing the waveform values
+        for the given channels.
+        """
+        with self.lock:
+            self.scope.write("CHAN{0}:WAV1:DATA:VAL?".format(channels[0]))
+            return self.scope.read_raw()
