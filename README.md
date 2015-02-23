@@ -16,5 +16,5 @@ Information
 Contact
 -------
 
-Vincent Michel: vincent.michel@maxlab.lu.se
-Paul Bell:      paul.bell@maxlab.lu.se
+- Vincent Michel: vincent.michel@maxlab.lu.se
+- Paul Bell:      paul.bell@maxlab.lu.se

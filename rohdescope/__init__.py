@@ -4,5 +4,5 @@ __all__ = ["ScopeConnection", "RTMConnection", "RTOConnection",
            "Vxi11Exception"]
 
 # Imports
-from rohdescope import ScopeConnection, RTMConnection, RTOConnection
+from rohdescope.connection import ScopeConnection, RTMConnection, RTOConnection
 from vxi11.vxi11 import Vxi11Exception
