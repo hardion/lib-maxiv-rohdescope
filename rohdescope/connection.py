@@ -316,12 +316,12 @@ class ScopeConnection(object):
         self.write(cmd)
 
     def get_channel_position(self, channel):
-        """Return the position for a given channel in volts."""
+        """Return the position for a given channel in divisions."""
         cmd = "CHAN{0}:POSition?".format(channel)
         return float(self.ask(cmd))
 
     def set_channel_position(self, channel, position):
-        """Set the position in volts for a given channel"""
+        """Set the position in divisions for a given channel"""
         cmd = "CHAN{0}:POSition {1}".format(channel, position)
         self.write(cmd)
 
