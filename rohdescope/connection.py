@@ -180,6 +180,8 @@ class ScopeConnection(object):
         """
         result = {}
         channel_number = len(channels)
+        if not channel_number or not string:
+            return result
         # Prepare string
         dtype = self.data_format.replace(',', '').lower()
         data_length_length = int(string[1])
@@ -301,6 +303,17 @@ class ScopeConnection(object):
     def set_time_position(self, position):
         """Set the time position in seconds."""
         cmd = "TIMebase:POSition {0}".format(position)
+        self.write(cmd)
+
+    def get_record_length(self):
+        """Return the record length in points."""
+        cmd = "ACQuire:POINts?"
+        rng = self.ask(cmd)
+        return int(rng)
+
+    def set_record_length(self, length):
+        """Set the record length in points."""
+        cmd = "ACQuire:POINts {0}".format(length)
         self.write(cmd)
 
     # Channel settings accessor methods
@@ -450,6 +463,10 @@ class RTMConnection(ScopeConnection):
 
     # Waveform acquisition
 
+    def set_record_length(self, length):
+        """Set the record length in points."""
+        raise NotImplementedError
+
     @support_channel_dict
     def get_waveform_string(self, channels):
         """Return a string containing the waveform values
@@ -554,11 +571,19 @@ class RTOConnection(ScopeConnection):
 
     # Waveform acquisition
 
+    def set_record_length(self, length):
+        """Set the record length in points."""
+        cmd = "ACQuire:POINts:AUTO RECL"
+        self.write(cmd)
+        return super(RTOConnection, self).set_record_length(length)
+
     @support_channel_dict
     def get_waveform_string(self, channels):
         """Return a string containing the waveform values
         for the given channels.
         """
+        if not channels:
+            return ""
         with self.lock:
             self.scope.write("CHAN{0}:WAV1:DATA:VAL?".format(channels[0]))
             return self.scope.read_raw()
