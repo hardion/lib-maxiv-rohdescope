@@ -207,15 +207,18 @@ class ScopeConnection(object):
             # Get median
             info = numpy.iinfo(data.dtype)
             data_median = (info.max + info.min) * 0.5
-            # Get factor and position
+            # Get factor
             factor = 10.0
             factor /= info.max - info.min
             if scales is not None:
                 factor *= scales[channel]
-            position = 0 if positions is None else positions[channel]
+            # Get position
+            position = 0
+            if positions is not None: 
+                position = positions[channel] * scales[channel]
             # Convert
             data = data.astype(numpy.double)
-            result[channel] = ((data - data_median) * factor) + position
+            result[channel] = ((data - data_median) * factor) - position
         # Return dict
         return result
 
@@ -247,11 +250,6 @@ class ScopeConnection(object):
     def get_identifier(self):
         """Return the scope identifier."""
         return str(self.ask("*IDN?"))
-
-    def get_record_length(self):
-        """Return the number of points."""
-        cmd = "ACQ:POINts?"
-        return int(self.ask(cmd))
 
     def get_waveform_mode(self, channel):
         """Return the waveform mode."""
@@ -308,8 +306,7 @@ class ScopeConnection(object):
     def get_record_length(self):
         """Return the record length in points."""
         cmd = "ACQuire:POINts?"
-        rng = self.ask(cmd)
-        return int(rng)
+        return int(self.ask(cmd))
 
     def set_record_length(self, length):
         """Set the record length in points."""
