@@ -214,7 +214,7 @@ class ScopeConnection(object):
                 factor *= scales[channel]
             # Get position
             position = 0
-            if positions is not None: 
+            if positions is not None:
                 position = positions[channel] * scales[channel]
             # Convert
             data = data.astype(numpy.double)
@@ -584,3 +584,16 @@ class RTOConnection(ScopeConnection):
         with self.lock:
             self.scope.write("CHAN{0}:WAV1:DATA:VAL?".format(channels[0]))
             return self.scope.read_raw()
+
+    # Time position correction
+
+    def get_time_position(self):
+        """Return the time position in seconds."""
+        cmd = "TIMebase:HORizontal:POSition?"
+        rng = self.ask(cmd)
+        return float(rng)
+
+    def set_time_position(self, position):
+        """Set the time position in seconds."""
+        cmd = "TIMebase:HORizontal:POSition {0}".format(position)
+        self.write(cmd)
