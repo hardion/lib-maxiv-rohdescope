@@ -237,13 +237,30 @@ class ScopeConnection(object):
         data_dict = self.get_waveform_data(channels)
         return self.convert_waveforms(data_dict, scales, positions)
 
-    def stamp_acquisition(self, channels):
+    def stamp_acquisition(self, channels, single=True):
         """Return the time stamp of an acquisition
         along with the values as a string.
         """
-        if channels:
-            self.ask("RUNS;*OPC?")
+        if channels and single:
+            self.write("RUNS")
+            self.wait()
         return time(), self.get_waveform_string(channels)
+
+    def wait(self, busy=True):
+        """Wait for the last commands to complete."""
+        # Use hardware wait
+        if not busy:
+            return self.ask("RUNS;*OPC?")
+        # Prepare wait
+        finished = lambda: int(self.ask("*ESR?")) % 2
+        timeout = self._kwargs['instrument_timeout'] / 1000.0
+        timeout += time()
+        self.write("*OPC")
+        # Wait for the commands to complete
+        while not finished():
+            # Handle timeout
+            if time() > timeout:
+                raise vxi11.vxi11.Vxi11Exception(15, "wait")
 
     # General accessor methods
 
@@ -495,6 +512,12 @@ class RTMConnection(ScopeConnection):
         # Return dict
         return result
 
+    def stamp_acquisition(self, channels, single=False):
+        """Return the time stamp of an acquisition
+        along with the values as a string.
+        """
+        return super(RTMConnection, self).stamp_acquisition(channels, single)
+
 
 # RTO scope connection class
 class RTOConnection(ScopeConnection):
@@ -520,6 +543,7 @@ class RTOConnection(ScopeConnection):
         """Return the status of the scope as a string."""
         status_dict = {2**4: "Measuring.",
                        2**3: "Waiting for trigger.",
+                       24:   "Waiting for trigger.",
                        2**2: "Autosetting.",
                        2**1: "Calibrating.",
                        2**0: "Calibrating.",
