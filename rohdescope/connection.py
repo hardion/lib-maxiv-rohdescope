@@ -7,6 +7,7 @@ import threading
 from functools import wraps
 from collections import Mapping
 from timeit import default_timer as time
+from vxi11.vxi11 import Vxi11Exception
 
 
 # Decorator to support the anbled channel dictionary
@@ -260,7 +261,7 @@ class ScopeConnection(object):
         while not finished():
             # Handle timeout
             if time() > timeout:
-                raise vxi11.vxi11.Vxi11Exception(15, "wait")
+                raise Vxi11Exception(15, "wait")
 
     # General accessor methods
 
@@ -372,21 +373,6 @@ class ScopeConnection(object):
         cmd = "CHAN{0}:SCALe {1}".format(channel, scale)
         self.write(cmd)
 
-    def get_channel_coupling(self, channel):
-        """Return the coupling for a given channel."""
-        cmd = "CHAN{0}:COUPling?".format(channel)
-        return str(self.ask(cmd))
-
-    def set_channel_coupling(self, channel, coupling):
-        """Set the coupling for a given channel.
-        The value should be DC, DCL, DCLimit or AC
-        """
-        if coupling not in ['DC', 'DCL', 'DCLimit', 'AC']:
-            raise ValueError('coupling type not allowed, '
-                             'it should be DC, DCLimit, AC or GND')
-        cmd = "CHAN{0}:COUPling {1}".format(channel, coupling)
-        self.write(cmd)
-
     def get_channel_enabled(self, channel):
         """Return whether the given channel is enabled."""
         cmd = "CHAN{0}:STATe?".format(channel)
@@ -397,6 +383,22 @@ class ScopeConnection(object):
         """Enable or disable a given channel."""
         state = ("OFF", "ON")[bool(enabled)]
         cmd = "CHAN{0}:STATe {1}".format(channel, state)
+        self.write(cmd)
+
+    def get_channel_coupling(self, channel):
+        """Return the trigger coupling.
+        (0 for DC, 1 for AC, 2 for DCLimit, 3 for ACLimit)
+        """
+        lst = ['DC', 'AC', 'DCL', 'ACL']
+        cmd = "CHAN{0}:COUPLing?".format(channel)
+        return lst.index(self.ask(cmd))
+
+    def set_channel_coupling(self, channel, coupling):
+        """Set the channel coupling.
+        (0 for DC, 1 for AC, 2 for DCLimit, 3 for ACLimit)
+        """
+        lst = ['DC', 'AC', 'DCL', 'ACL']
+        cmd = "CHAN{0}:COUPLing {1}".format(channel, lst[coupling])
         self.write(cmd)
 
     # Trigger operation
@@ -436,7 +438,23 @@ class ScopeConnection(object):
         (0 for negative, 1 for positive and 2 for either)
         """
         lst = ['NEG', 'POS', 'EITH']
-        cmd = self.trigger_name + ":EDGE:SLOPE %s" % lst[slope]
+        cmd = self.trigger_name + ":EDGE:SLOPE {0}".format(lst[slope])
+        self.write(cmd)
+
+    def get_trigger_coupling(self):
+        """Return the trigger coupling.
+        (0 for DC, 1 for AC, 2 for HF)
+        """
+        lst = ['DC', 'AC', 'HF']
+        cmd = self.trigger_name + ":EDGE:COUPLing?"
+        return lst.index(self.ask(cmd))
+
+    def set_trigger_coupling(self, coupling):
+        """Set the trigger coupling.
+        (0 for DC, 1 for AC, 2 for HF)
+        """
+        lst = ['DC', 'AC', 'HF']
+        cmd = self.trigger_name + ":EDGE:COUPLing {0}".format(lst[coupling])
         self.write(cmd)
 
 
@@ -613,11 +631,37 @@ class RTOConnection(ScopeConnection):
 
     def get_time_position(self):
         """Return the time position in seconds."""
+        # Get position
         cmd = "TIMebase:HORizontal:POSition?"
-        rng = self.ask(cmd)
-        return float(rng)
+        position = float(self.ask(cmd))
+        # Get reference
+        cmd = "TIMebase:REFerence?"
+        shift = 0.5 - float(self.ask(cmd)) / 100
+        # Get time range
+        if shift:
+            cmd = "TIMebase:RANGe?"
+            position += shift * float(self.ask(cmd))
+        return position
 
     def set_time_position(self, position):
         """Set the time position in seconds."""
+        cmd = "TIMebase:REFerence {0}".format(50)
+        self.write(cmd)
         cmd = "TIMebase:HORizontal:POSition {0}".format(position)
+        self.write(cmd)
+
+    def get_trigger_coupling(self):
+        """Return the trigger coupling.
+        (0 for DC, 1 for AC, 2 for DCLimit)
+        """
+        lst = ['DC', 'AC', 'DCL', 'ACL']
+        cmd = self.trigger_name + ":ANEDge:COUPLing?"
+        return lst.index(self.ask(cmd))
+
+    def set_trigger_coupling(self, coupling):
+        """Set the trigger coupling.
+        (0 for DC, 1 for AC, 2 for DCLimit)
+        """
+        lst = ['DC', 'AC', 'DCL', 'ACL']
+        cmd = self.trigger_name + ":ANEDge:COUPLing {0}".format(lst[coupling])
         self.write(cmd)
