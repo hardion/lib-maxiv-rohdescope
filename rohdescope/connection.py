@@ -4,26 +4,9 @@
 import numpy
 import vxi11
 import threading
-from functools import wraps
-from collections import Mapping
 from timeit import default_timer as time
 from vxi11.vxi11 import Vxi11Exception
-
-
-# Decorator to support the anbled channel dictionary
-def support_channel_dict(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        try:
-            channels = args[0]
-        except IndexError:
-            channels = kwargs.pop("channels", None)
-        if isinstance(channels, Mapping):
-            channels = sorted(key for key, value in channels.items()
-                              if value)
-            args = (channels,) + args[1:]
-        return func(self, *args, **kwargs)
-    return wrapper
+from rohdescope.common import support_channel_dict, tick_control
 
 
 # Scope connection class
@@ -40,9 +23,13 @@ class ScopeConnection(object):
     # Data format
     data_format = "uint8"
 
+    # Minimal tick duration
+    default_tick = 0.001
+
     def __init__(self, host, **kwargs):
-        self._host = host
-        self._kwargs = kwargs
+        self.tick = kwargs.pop("tick", self.default_tick)
+        self.host = host
+        self.kwargs = kwargs
         self.lock = threading.Lock()
         self.firmware_version = None
         self.scope = None
@@ -54,7 +41,7 @@ class ScopeConnection(object):
         connected = self.connected
         # Instanciate the vxi11 instrument
         if not self.scope:
-            self.scope = vxi11.Instrument(self._host, **self._kwargs)
+            self.scope = vxi11.Instrument(self.host, **self.kwargs)
         # Get firmware_version
         if not self.firmware_version:
             self.firmware_version = self.get_firmware_version()
@@ -252,9 +239,12 @@ class ScopeConnection(object):
         # Use hardware wait
         if not busy:
             return self.ask("RUNS;*OPC?")
-        # Prepare wait
-        finished = lambda: int(self.ask("*ESR?")) % 2
-        timeout = self._kwargs['instrument_timeout'] / 1000.0
+        # Prepare test condition
+        @tick_control(self.tick)
+        def finished():
+            return int(self.ask("*ESR?")) % 2
+        # Prepare timeout
+        timeout = self.kwargs['instrument_timeout'] / 1000.0
         timeout += time()
         self.write("*OPC")
         # Wait for the commands to complete
