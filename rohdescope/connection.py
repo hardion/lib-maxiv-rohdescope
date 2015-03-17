@@ -238,13 +238,13 @@ class ScopeConnection(object):
         data_dict = self.get_waveform_data(channels)
         return self.convert_waveforms(data_dict, scales, positions)
 
-    def stamp_acquisition(self, channels, single=True):
+    def stamp_acquisition(self, channels, single=True, busy=True):
         """Return the time stamp of an acquisition
         along with the values as a string.
         """
         if channels and single:
             self.write("RUNS")
-            self.wait()
+            self.wait(busy)
         return time(), self.get_waveform_string(channels)
 
     def wait(self, busy=True):
