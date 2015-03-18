@@ -520,11 +520,12 @@ class RTMConnection(ScopeConnection):
         # Return dict
         return result
 
-    def stamp_acquisition(self, channels, single=False):
+    def stamp_acquisition(self, channels, single=False, busy=True):
         """Return the time stamp of an acquisition
         along with the values as a string.
         """
-        return super(RTMConnection, self).stamp_acquisition(channels, single)
+        args = channels, single, busy
+        return super(RTMConnection, self).stamp_acquisition(*args)
 
 
 # RTO scope connection class
