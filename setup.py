@@ -15,7 +15,7 @@ def safe_read(fname):
 
 # Setup
 setup(name="python-rohdescope",
-      version="0.4.1",
+      version="0.4.2",
       description="Library for remote communication with the R&S oscilloscopes.",
       author="Vincent Michel; Paul Bell",
       author_email="vincent.michel@maxlab.lu.se; paul.bell@maxlab.lu.se",
