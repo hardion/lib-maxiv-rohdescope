@@ -107,11 +107,14 @@ class ScopeConnection(object):
         cmd = "FORMAT:DATA " + self.data_format
         self.write(cmd)
 
+    def get_acquisition_count(self):
+        """Return the number of aquisition for single mode."""
+        cmd = " ACQuire:COUNt?"
+        return int(self.ask(cmd))
+
     def set_acquisition_count(self, count):
-        """Set number of acquisition to average
-        when performing a single acquisition.
-        """
-        cmd = "ACQ:NSIN:COUNT %d" % count
+        """Set the number of aquisition for single mode."""
+        cmd = " ACQuire:COUNt {0}".format(count)
         self.write(cmd)
 
     # Commands
@@ -264,9 +267,9 @@ class ScopeConnection(object):
         cmd = "CHAN{0}:TYPE?".format(channel)
         return str(self.ask(cmd))
 
-    def get_acquire_mode(self):
-        """Return le mode d'acquisition."""
-        cmd = "ACQUIRE:MODE?"
+    def get_acquisition_mode(self):
+        """Return the acquisition mode."""
+        cmd = "ACQuire:MODE?"
         return str(self.ask(cmd))
 
     def get_state(self):
@@ -483,6 +486,18 @@ class RTMConnection(ScopeConnection):
         default_code = "Unknown code: {0}".format(code)
         return status_dict.get(code, default_code)
 
+    # Acquisition settings
+
+    def get_acquisition_count(self):
+        """Return the number of aquisition for single mode."""
+        cmd = " ACQuire:NSINgle:COUNt?"
+        return int(self.ask(cmd))
+
+    def set_acquisition_count(self, count):
+        """Set the number of aquisition for single mode."""
+        cmd = " ACQuire:COUNt {0}".format(count)
+        self.write(cmd)
+
     # Waveform acquisition
 
     def set_record_length(self, length):
@@ -577,6 +592,8 @@ class RTOConnection(ScopeConnection):
         # Set the fast binary readout
         self.set_fast_readout(True)
         self.set_binary_readout()
+        # Set acquisiton count for run single
+        self.set_acquisition_count(1)
 
     def set_channel_export(self, channel, export):
         """Set the channel export for fast acquisition."""
