@@ -9,9 +9,16 @@ Information
 -----------
 
  - Package: python-rohdescope
- - Repo:    [lib-maxiv-rohdescope][repo]
+ - Repo:    [lib-maxiv-rohdescope][rohdescope]
 
-[repo]: https://gitorious.maxlab.lu.se/kits-maxiv/lib-maxiv-rohdescope/
+[rohdescope]: https://github.com/MaxIV-KitsControls/lib-maxiv-rohdescope
+
+Requirement
+-----------
+
+ - VXI-11: [python-vxi11][vxi11] >= 0.7.1
+
+[vxi11]: https://github.com/MaxIV-KitsControls/python-vxi11
 
 
 Hardware
