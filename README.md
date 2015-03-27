@@ -1,6 +1,5 @@
 python-rohdescope
 =================
-***
 
 Library for the Rohde and Schwarz oscilloscopes.
 
