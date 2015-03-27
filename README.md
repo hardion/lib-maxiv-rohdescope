@@ -1,7 +1,7 @@
 python-rohdescope
 =================
 
-Library for the Rohde and Schwarz oscilloscopes.
+Library for Rohde and Schwarz oscilloscopes.
 
 Information
 -----------
