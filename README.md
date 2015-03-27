@@ -3,7 +3,6 @@ python-rohdescope
 
 Library for the Rohde and Schwarz oscilloscopes.
 
-
 Information
 -----------
 
@@ -18,7 +17,6 @@ Requirement
  - VXI-11: [python-vxi11][vxi11] >= 0.7.1
 
 [vxi11]: https://github.com/MaxIV-KitsControls/python-vxi11
-
 
 Hardware
 --------
