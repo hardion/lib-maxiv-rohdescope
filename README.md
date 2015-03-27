@@ -13,6 +13,17 @@ Information
 
 [repo]: https://gitorious.maxlab.lu.se/kits-maxiv/lib-maxiv-rohdescope/
 
+
+Hardware
+--------
+
+The library has been tested with the following hardwares:
+
+| Scope  | Reference | Firmware |
+|--------|-----------|----------|
+| RTM    | 2054      | 05.502   |
+| RTO    | 1004      | 2.15.2.0 |
+
 Contact
 -------
 
